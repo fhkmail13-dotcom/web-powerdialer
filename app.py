@@ -47,6 +47,7 @@ def upload_csv():
         headers = [h.strip().lower() for h in lines[0].split(',')]
         name_col = next((i for i, h in enumerate(headers) if 'name' in h), None)
         phone_col = next((i for i, h in enumerate(headers) if 'phone' in h), None)
+        email_col = next((i for i, h in enumerate(headers) if 'email' in h), None)
         
         if name_col is None or phone_col is None:
             return jsonify({'success': False, 'error': 'CSV must have "name" and "phone" columns'})
@@ -57,8 +58,10 @@ def upload_csv():
             if len(row) > max(name_col, phone_col):
                 name = row[name_col]
                 phone = row[phone_col]
+                email = row[email_col] if email_col is not None and len(row) > email_col else ''
+                
                 if name and phone:
-                    contacts.append({'name': name, 'phone': phone})
+                    contacts.append({'name': name, 'phone': phone, 'email': email})
         
         return jsonify({'success': True, 'count': len(contacts)})
     

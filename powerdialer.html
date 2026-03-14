@@ -330,6 +330,7 @@
                     <div class="call-info">
                         <div class="call-name">${call.contact.name}</div>
                         <div class="call-number">${call.contact.phone}</div>
+                        <div class="call-email">${call.contact.email || ""}</div>
                     </div>
                     <div class="call-status ${call.status}">
                         ${call.status.toUpperCase()}${call.status === 'calling' ? '...' : ''}
