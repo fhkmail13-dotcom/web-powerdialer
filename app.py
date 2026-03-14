@@ -17,7 +17,7 @@ client = signalwire_client(SIGNALWIRE_PROJECT_ID, SIGNALWIRE_AUTH_TOKEN, signalw
 
 # Global state
 contacts = []
-active_calls = {}  # call_sid -> call_data
+active_calls = {}
 call_count = 0
 is_dialing = False
 is_paused = False
@@ -92,13 +92,11 @@ def resume_dialing():
 
 @app.route('/skip_contact', methods=['POST'])
 def skip_contact():
-    """Skip only the longest-running call"""
     global active_calls
     
     if not active_calls:
         return jsonify({'success': True})
     
-    # Find longest-running call
     longest_call_sid = None
     longest_duration = 0
     
@@ -109,7 +107,6 @@ def skip_contact():
                 longest_duration = duration
                 longest_call_sid = call_sid
     
-    # Hang up the longest-running call
     if longest_call_sid:
         try:
             client.calls(longest_call_sid).update(status='completed')
@@ -163,18 +160,15 @@ def get_status():
     })
 
 def maintain_dialing_slots():
-    """Continuously maintain the target number of simultaneous calls"""
     global active_calls, contacts, call_count, is_dialing, is_paused, connected_call
     
     while is_dialing:
         if not is_paused and not connected_call and contacts:
             
             with dialing_lock:
-                # Count active calling slots
                 active_calling_count = len([call for call in active_calls.values() 
                                           if call['status'] in ['calling', 'ringing']])
                 
-                # Fill empty slots
                 slots_needed = simultaneous_dials - active_calling_count
                 
                 for _ in range(slots_needed):
@@ -184,21 +178,20 @@ def maintain_dialing_slots():
                     else:
                         break
         
-        time.sleep(0.5)  # Check every half second for immediate slot replacement
+        time.sleep(0.5)
 
 def start_single_call(contact):
-    """Start a single call and track it"""
     global call_count, active_calls
     
     try:
         call = client.calls.create(
             from_=FROM_NUMBER,
             to=contact['phone'],
-            url=f'http://web-production-18e23.up.railway.app/call_handler',
-            status_callback=f'http://web-production-18e23.up.railway.app/call_status',
+            url=f'https://web-production-18e23.up.railway.app/call_handler',
+            status_callback=f'https://web-production-18e23.up.railway.app/call_status',
             machine_detection='DetectMessageEnd',
-            machine_detection_timeout=8,
-            timeout=10
+            machine_detection_timeout=10,
+            timeout=20
         )
         
         call_count += 1
@@ -215,7 +208,6 @@ def start_single_call(contact):
         print(f"Error calling {contact['name']}: {e}")
 
 def hangup_other_calls(except_call_sid):
-    """Hang up all calls except the connected one"""
     global active_calls
     
     for call_sid, call_data in list(active_calls.items()):
@@ -228,7 +220,6 @@ def hangup_other_calls(except_call_sid):
 
 @app.route('/call_handler', methods=['POST'])
 def call_handler():
-    """Handle answered calls"""
     global connected_call, active_calls
     
     call_sid = request.form.get('CallSid')
@@ -236,19 +227,16 @@ def call_handler():
     
     print(f"Call handler: {call_sid}, Machine: {machine_detection}")
     
-    # Skip if voicemail/machine - this will free up the slot immediately
     if machine_detection in ['machine_end_beep', 'machine_end_silence', 'machine_start']:
-        print(f"Voicemail detected on {call_sid} - hanging up (slot will be refilled)")
+        print(f"Voicemail detected on {call_sid} - hanging up")
         with dialing_lock:
             active_calls.pop(call_sid, None)
         return '<Response><Hangup/></Response>', 200, {'Content-Type': 'application/xml'}
     
-    # Human answered - this is the winner!
     if call_sid in active_calls:
         connected_call = active_calls[call_sid]
         connected_call['status'] = 'answered'
         
-        # Hang up all other calls
         hangup_other_calls(call_sid)
         
         print(f"Human answered on {call_sid} - bridging to your phone")
@@ -266,7 +254,6 @@ def call_handler():
 
 @app.route('/call_status', methods=['POST'])
 def call_status():
-    """Handle call status updates"""
     global connected_call, active_calls
     
     call_sid = request.form.get('CallSid')
@@ -280,7 +267,6 @@ def call_status():
                 del active_calls[call_sid]
                 print(f"Call {call_sid} ended - slot available for refill")
         
-        # If this was the connected call, clear it
         if connected_call and connected_call.get('call_sid') == call_sid:
             print("Connected call ended - ready to resume dialing")
             connected_call = None
