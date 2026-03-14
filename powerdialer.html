@@ -452,13 +452,12 @@
                 alert('Enter a number first!');
                 return;
             }
-            
-            callCount++;
-            document.getElementById('calls').innerText = callCount;
-            
-            const manualContact = { name: `Manual: ${dialedNumber}`, phone: dialedNumber };
-            addActiveCall(manualContact, true);
-            
+            fetch('/manual_call', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({number: dialedNumber})
+            });
+            startPolling();
             clearNumber();
             toggleDialpad();
         }
@@ -467,6 +466,40 @@
             alert('Settings: SignalWire configuration, ngrok setup, etc.');
         }
         
+        // Poll backend for real call status
+        let pollInterval = null;
+        function startPolling() {
+            if (pollInterval) return;
+            pollInterval = setInterval(async () => {
+                try {
+                    const [s, c] = await Promise.all([fetch('/status'), fetch('/active_calls_data')]);
+                    const status = await s.json();
+                    const callsData = await c.json();
+                    document.getElementById('calls').innerText = status.call_count;
+                    document.getElementById('status').innerText = status.status;
+                    if (status.contacts_remaining !== undefined) {
+                        document.getElementById('contacts').innerText = status.contacts_remaining + ' contacts remaining';
+                    }
+                    activeCalls = callsData.calls.map(c => ({
+                        id: c.call_sid,
+                        contact: { name: c.name, phone: c.phone, email: c.email },
+                        status: c.status
+                    }));
+                    updateActiveCallsDisplay();
+                    if (status.connection_info) {
+                        const banner = document.getElementById('connectionBanner');
+                        banner.innerHTML = status.connection_info;
+                        banner.classList.add('show');
+                    } else {
+                        hideConnectionBanner();
+                    }
+                } catch(e) { console.log('Poll error:', e); }
+            }, 1500);
+        }
+        function stopPolling() {
+            if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        }
+
         // Main dialer functions
         function start() { 
             if (contacts.length === 0) {
@@ -475,9 +508,13 @@
             }
             isDialing = true;
             isPaused = false;
-            document.getElementById('status').innerText = `STARTED - Dialing ${simultaneousDials} contacts at once...`; 
-            
-            simulateDialing();
+            document.getElementById('status').innerText = `STARTED - Dialing ${simultaneousDials} contacts at once...`;
+            fetch('/start_dialing', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({simultaneous: simultaneousDials})
+            });
+            startPolling();
         }
         
         function simulateDialing() {
@@ -504,6 +541,7 @@
         
         function pause() { 
             isPaused = true;
+            fetch('/pause_dialing', {method: 'POST'});
             document.getElementById('status').innerText = 'PAUSED - Current calls will complete'; 
         }
         
@@ -513,14 +551,14 @@
                 return;
             }
             isPaused = false;
+            fetch('/resume_dialing', {method: 'POST'});
             document.getElementById('status').innerText = 'RESUMED - Continuing to dial...';
-            simulateDialing();
         }
         
         function skip() {
             if (isDialing && !isPaused) {
+                fetch('/skip_contact', {method: 'POST'});
                 document.getElementById('status').innerText = 'SKIPPED - Moving to next contact(s)...';
-                simulateDialing();
             }
         }
         
@@ -528,7 +566,9 @@
             isDialing = false;
             isPaused = false;
             activeCalls = [];
+            stopPolling();
             stopRinging();
+            fetch('/hangup_calls', {method: 'POST'});
             updateActiveCallsDisplay();
             hideConnectionBanner();
             document.getElementById('status').innerText = 'STOPPED - All calls ended'; 
@@ -538,45 +578,26 @@
         document.getElementById('csvfile').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
-            
-            document.getElementById('status').innerText = 'Reading CSV...';
-            
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const csv = event.target.result;
-                const lines = csv.split('\n');
-                
-                if (lines.length < 2) {
-                    document.getElementById('status').innerText = 'CSV file is empty or invalid';
-                    return;
+
+            document.getElementById('status').innerText = 'Uploading CSV...';
+
+            const formData = new FormData();
+            formData.append('csv', file);
+
+            fetch('/upload_csv', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    contacts = new Array(data.count).fill(null);
+                    document.getElementById('contacts').innerText = `${data.count} contacts loaded`;
+                    document.getElementById('status').innerText = `Ready to dial ${data.count} contacts from ${file.name}`;
+                } else {
+                    document.getElementById('status').innerText = 'Error: ' + data.error;
                 }
-                
-                const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
-                const nameCol = headers.findIndex(h => h.includes('name'));
-                const phoneCol = headers.findIndex(h => h.includes('phone'));
-                
-                if (nameCol === -1 || phoneCol === -1) {
-                    document.getElementById('status').innerText = 'CSV must have "name" and "phone" columns';
-                    return;
-                }
-                
-                contacts = [];
-                for (let i = 1; i < lines.length; i++) {
-                    const row = lines[i].split(',').map(cell => cell.trim());
-                    if (row.length > Math.max(nameCol, phoneCol)) {
-                        const name = row[nameCol];
-                        const phone = row[phoneCol];
-                        if (name && phone) {
-                            contacts.push({name: name, phone: phone});
-                        }
-                    }
-                }
-                
-                document.getElementById('contacts').innerText = `${contacts.length} contacts loaded`;
-                document.getElementById('status').innerText = `Ready to dial ${contacts.length} contacts from ${file.name}`;
-            };
-            
-            reader.readAsText(file);
+            })
+            .catch(e => {
+                document.getElementById('status').innerText = 'Upload failed: ' + e;
+            });
         });
 
         // --- Phone Ring Tone ---

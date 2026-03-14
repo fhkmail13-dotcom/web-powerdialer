@@ -290,6 +290,29 @@ def active_calls_data():
         })
     return jsonify({'calls': calls})
 
+@app.route('/manual_call', methods=['POST'])
+def manual_call():
+    data = request.get_json()
+    number = data.get('number')
+    if not number:
+        return jsonify({'success': False, 'error': 'No number provided'})
+    contact = {'name': f'Manual: {number}', 'phone': number, 'email': ''}
+    start_single_call(contact)
+    return jsonify({'success': True})
+
+@app.route('/active_calls_data')
+def active_calls_data():
+    calls = []
+    for sid, data in active_calls.items():
+        calls.append({
+            'call_sid': sid,
+            'name': data['contact'].get('name', ''),
+            'phone': data['contact'].get('phone', ''),
+            'email': data['contact'].get('email', ''),
+            'status': data['status']
+        })
+    return jsonify({'calls': calls})
+
 @app.route('/health')
 def health():
     return "OK"
