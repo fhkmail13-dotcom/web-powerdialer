@@ -59,14 +59,6 @@
         .call-info { text-align: left; flex-grow: 1; }
         .call-name { font-weight: bold; font-size: 16px; color: #fff; }
         .call-number { color: #aaa; font-size: 14px; }
-        .call-email { color: #888; font-size: 12px; font-style: italic; }
-        .call-info-row { display: flex; align-items: center; gap: 8px; margin: 2px 0; }
-        .copy-btn {
-            background: #333; color: #aaa; border: 1px solid #555;
-            border-radius: 4px; padding: 2px 7px; font-size: 13px;
-            cursor: pointer; line-height: 1;
-        }
-        .copy-btn:hover { background: #555; color: #fff; }
         .call-status { 
             background: #333; padding: 10px 15px; border-radius: 20px; 
             font-size: 12px; font-weight: bold; min-width: 80px; text-align: center;
@@ -333,38 +325,12 @@
                 return;
             }
             
-            
-            
-            // Handle ring and connect sounds
-            const callingCount = activeCalls.filter(call => call.status === "calling").length;
-            if (callingCount > 0) {
-                startRinging();
-            } else {
-                stopRinging();
-            }
-            
-            // Play connect sound when someone answers
-            const answeredCalls = activeCalls.filter(call => call.status === "answered");
-            if (answeredCalls.length > 0) {
-                const connectSound = document.getElementById("connectSound");
-                connectSound.play().catch(e => console.log("Connect sound blocked by browser"));
-            }
-            
             callList.innerHTML = activeCalls.map(call => `
                 <div class="call-item ${call.status}">
                     <div class="call-info">
-                        <div class="call-info-row">
-                            <div class="call-name">${call.contact.name}</div>
-                            <button class="copy-btn" onclick="copyText('${call.contact.name}')" title="Copy name">&#x2398;</button>
-                        </div>
-                        <div class="call-info-row">
-                            <div class="call-number">${call.contact.phone}</div>
-                            <button class="copy-btn" onclick="copyText('${call.contact.phone}')" title="Copy number">&#x2398;</button>
-                        </div>
-                        <div class="call-info-row">
-                            <div class="call-email">${call.contact.email || ""}</div>
-                            ${call.contact.email ? `<button class="copy-btn" onclick="copyText('${call.contact.email}')" title="Copy email">&#x2398;</button>` : ""}
-                        </div>
+                        <div class="call-name">${call.contact.name}</div>
+                        <div class="call-number">${call.contact.phone}</div>
+                        <div class="call-email">${call.contact.email || ""}</div>
                     </div>
                     <div class="call-status ${call.status}">
                         ${call.status.toUpperCase()}${call.status === 'calling' ? '...' : ''}
@@ -373,25 +339,6 @@
             `).join('');
         }
         
-        function copyText(text) {
-            navigator.clipboard.writeText(text).then(() => {
-                const btns = document.querySelectorAll('.copy-btn');
-                btns.forEach(btn => {
-                    if (btn.getAttribute('onclick').includes(text)) {
-                        btn.innerText = '✓';
-                        setTimeout(() => btn.innerHTML = '&#x2398;', 1200);
-                    }
-                });
-            }).catch(() => {
-                const el = document.createElement('textarea');
-                el.value = text;
-                document.body.appendChild(el);
-                el.select();
-                document.execCommand('copy');
-                document.body.removeChild(el);
-            });
-        }
-
         function showConnectionBanner(contact) {
             const banner = document.getElementById('connectionBanner');
             banner.innerHTML = `CONNECTED: ${contact.name} - ${contact.phone}`;
@@ -619,76 +566,6 @@
             
             reader.readAsText(file);
         });
-
-        // --- Phone Ring Tone (Web Audio API) ---
-        let ringAudioCtx = null;
-        let isRinging = false;
-        let ringTimeout = null;
-        let activeRingGain = null;
-        let activeOscillators = [];
-
-        function startRinging() {
-            if (isRinging) return;
-            isRinging = true;
-            if (!ringAudioCtx) ringAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            playRingCycle();
-        }
-
-        function playRingCycle() {
-            if (!isRinging) return;
-            const ctx = ringAudioCtx;
-            const now = ctx.currentTime;
-            const ringDuration = 1.6;
-
-            const osc1 = ctx.createOscillator();
-            const osc2 = ctx.createOscillator();
-            const gain = ctx.createGain();
-
-            osc1.connect(gain);
-            osc2.connect(gain);
-            gain.connect(ctx.destination);
-
-            osc1.type = 'sine';
-            osc2.type = 'sine';
-            osc1.frequency.value = 440;
-            osc2.frequency.value = 480;
-
-            gain.gain.setValueAtTime(0, now);
-            gain.gain.linearRampToValueAtTime(0.25, now + 0.05);
-            gain.gain.setValueAtTime(0.25, now + ringDuration - 0.1);
-            gain.gain.linearRampToValueAtTime(0, now + ringDuration);
-
-            osc1.start(now);
-            osc2.start(now);
-            osc1.stop(now + ringDuration);
-            osc2.stop(now + ringDuration);
-
-            // Track so we can kill them instantly if needed
-            activeRingGain = gain;
-            activeOscillators = [osc1, osc2];
-
-            // Ring pattern: 1.6s on, 3.4s off = 5s cycle
-            ringTimeout = setTimeout(playRingCycle, 5000);
-        }
-
-        function stopRinging() {
-            isRinging = false;
-            if (ringTimeout) { clearTimeout(ringTimeout); ringTimeout = null; }
-            // Immediately silence any currently playing ring
-            if (activeRingGain) {
-                try {
-                    activeRingGain.gain.cancelScheduledValues(0);
-                    activeRingGain.gain.setValueAtTime(0, ringAudioCtx.currentTime);
-                } catch(e) {}
-                activeRingGain = null;
-            }
-            activeOscillators.forEach(osc => { try { osc.stop(); } catch(e) {} });
-            activeOscillators = [];
-        }
     </script>
-    <audio id="ringSound"></audio>
-    <audio id="connectSound">
-        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBDuB0fPGdyMFLYPP8teKOQcTZ7ztr7hUFw1Mp+Dvs2gbBzaJz+/ZfTAFGHDG9tyTQwgPXrfq6qVSFApAm9/xwmUhBzaJ0fPKeSIEKn/M8diIJQUvTK3h6JFCAw5Xqe/jrFIfBBSF2e3bnD0HIoHR9NeRPAgPXaHg7bBJEgx4tuPpq1knBySS2vDTgjMGCozT59udOQIZc8P22YQxAxJOmt/zul4ZBT+Azuu+YQU7aL3h4qZCCQ9wveHspFYfCkOX3vDVcTYGJYXR9M2BMRwQVKzkzn4hEhJVxePoklQQByKF3PLMbmEQAn/J6Jg5EBJ2z+fjpm0mAjOQ2fLZjC8J" type="audio/wav">
-    </audio>
 </body>
 </html>
