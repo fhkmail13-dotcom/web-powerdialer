@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Power Dialer - Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        body { 
+            background: #000; color: #fff; font-family: Arial; margin: 0;
+            display: flex; justify-content: center; align-items: center; 
+            min-height: 100vh; text-align: center;
+        }
+        .login-container { 
+            background: #111; border: 1px solid #333; border-radius: 15px; 
+            padding: 40px; max-width: 400px; width: 90%;
+        }
+        .logo { 
+            background: #fff; color: #000; padding: 20px; border-radius: 10px; 
+            font-size: 24px; font-weight: bold; margin-bottom: 30px;
+        }
+        .welcome { font-size: 18px; margin-bottom: 20px; color: #ccc; }
+        .description { font-size: 14px; margin-bottom: 30px; color: #999; line-height: 1.5; }
+        #g_id_onload { margin: 20px 0; }
+        .loading { display: none; font-size: 16px; color: #0080ff; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">POWER DIALER</div>
+        <div class="welcome">Welcome to PowerDialer</div>
+        <div class="description">
+            Professional power dialing for your business.<br>
+            Sign in with Google to get started.
+        </div>
+        
+        <div id="g_id_onload"
+             data-client_id="YOUR_GOOGLE_CLIENT_ID"
+             data-callback="handleCredentialResponse"
+             data-auto_prompt="false">
+        </div>
+        <div class="g_id_signin" data-type="standard"></div>
+        
+        <div class="loading" id="loading">
+            Logging you in...
+        </div>
+    </div>
+
+    <script>
+        function handleCredentialResponse(response) {
+            document.getElementById('loading').style.display = 'block';
+            
+            // Decode JWT token
+            const payload = JSON.parse(atob(response.credential.split('.')[1]));
+            
+            // Store user info
+            sessionStorage.setItem('user', JSON.stringify({
+                email: payload.email,
+                name: payload.name,
+                picture: payload.picture
+            }));
+            
+            // Redirect to PowerDialer
+            window.location.href = '/dialer';
+        }
+        
+        // Check if already logged in
+        if (sessionStorage.getItem('user')) {
+            window.location.href = '/dialer';
+        }
+    </script>
+</body>
+</html>
