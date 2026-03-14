@@ -282,6 +282,7 @@
         let dialedNumber = '';
         let callCount = 0;
         let activeCalls = [];
+        let previousAnsweredSids = new Set();
         let callIdCounter = 1;
         
         // Poll real backend for call status
@@ -360,12 +361,11 @@
                 stopRinging();
             }
             
-            // Play connect sound when someone answers
-            const answeredCalls = activeCalls.filter(call => call.status === "answered");
-            if (answeredCalls.length > 0) {
-                const connectSound = document.getElementById("connectSound");
-                connectSound.play().catch(e => console.log("Connect sound blocked by browser"));
-            }
+            // Play ding when a new call is answered
+            const answeredSids = activeCalls.filter(c => c.status === "answered").map(c => c.id);
+            const newAnswers = answeredSids.filter(sid => !previousAnsweredSids.has(sid));
+            if (newAnswers.length > 0) playDing();
+            previousAnsweredSids = new Set(answeredSids);
             
             callList.innerHTML = activeCalls.map(call => `
                 <div class="call-item ${call.status}">
@@ -537,7 +537,13 @@
             }
             isDialing = true;
             isPaused = false;
-            document.getElementById('status').innerText = `STARTED - Dialing ${simultaneousDials} contacts at once...`; 
+            document.getElementById('status').innerText = `STARTED - Dialing ${simultaneousDials} contacts at once...`;
+
+            fetch('/start_dialing', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({simultaneous: simultaneousDials})
+            });
             
             simulateDialing();
         }
@@ -549,6 +555,7 @@
         
         function pause() { 
             isPaused = true;
+            fetch('/pause_dialing', {method: 'POST'});
             document.getElementById('status').innerText = 'PAUSED - Current calls will complete'; 
         }
         
@@ -558,14 +565,14 @@
                 return;
             }
             isPaused = false;
+            fetch('/resume_dialing', {method: 'POST'});
             document.getElementById('status').innerText = 'RESUMED - Continuing to dial...';
-            simulateDialing();
         }
         
         function skip() {
             if (isDialing && !isPaused) {
+                fetch('/skip_contact', {method: 'POST'});
                 document.getElementById('status').innerText = 'SKIPPED - Moving to next contact(s)...';
-                simulateDialing();
             }
         }
         
@@ -585,47 +592,51 @@
             const file = e.target.files[0];
             if (!file) return;
             
-            document.getElementById('status').innerText = 'Reading CSV...';
+            document.getElementById('status').innerText = 'Uploading CSV...';
             
+            const formData = new FormData();
+            formData.append('csv', file);
+            
+            fetch('/upload_csv', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    contacts = new Array(data.count).fill(null); // just track count
+                    document.getElementById('contacts').innerText = `${data.count} contacts loaded`;
+                    document.getElementById('status').innerText = `Ready to dial ${data.count} contacts from ${file.name}`;
+                } else {
+                    document.getElementById('status').innerText = 'Error: ' + data.error;
+                }
+            })
+            .catch(e => {
+                document.getElementById('status').innerText = 'Upload failed: ' + e;
+            });
+
             const reader = new FileReader();
             reader.onload = function(event) {
-                const csv = event.target.result;
-                const lines = csv.split('\n');
-                
-                if (lines.length < 2) {
-                    document.getElementById('status').innerText = 'CSV file is empty or invalid';
-                    return;
-                }
-                
-                const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
-                const nameCol = headers.findIndex(h => h.includes('name'));
-                const phoneCol = headers.findIndex(h => h.includes('phone'));
-                const emailCol = headers.findIndex(h => h.includes('email'));
-                
-                if (nameCol === -1 || phoneCol === -1) {
-                    document.getElementById('status').innerText = 'CSV must have "name" and "phone" columns';
-                    return;
-                }
-                
-                contacts = [];
-                for (let i = 1; i < lines.length; i++) {
-                    const row = lines[i].split(',').map(cell => cell.trim());
-                    if (row.length > Math.max(nameCol, phoneCol)) {
-                        const name = row[nameCol];
-                        const phone = row[phoneCol];
-                        const email = emailCol !== -1 && row[emailCol] ? row[emailCol] : '';
-                        if (name && phone) {
-                            contacts.push({name: name, phone: phone, email: email});
-                        }
-                    }
-                }
-                
-                document.getElementById('contacts').innerText = `${contacts.length} contacts loaded`;
-                document.getElementById('status').innerText = `Ready to dial ${contacts.length} contacts from ${file.name}`;
-            };
             
             reader.readAsText(file);
         });
+
+        // --- Connect Ding Sound ---
+        function playDing() {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const frequencies = [880, 1100, 1320];
+            frequencies.forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                const start = ctx.currentTime + i * 0.12;
+                gain.gain.setValueAtTime(0, start);
+                gain.gain.linearRampToValueAtTime(0.3, start + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
+                osc.start(start);
+                osc.stop(start + 0.4);
+            });
+        }
 
         // --- Phone Ring Tone (Web Audio API) ---
         let ringAudioCtx = null;
