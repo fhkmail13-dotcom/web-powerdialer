@@ -325,6 +325,13 @@
                 stopRinging();
                 return;
             }
+
+            const callingCount = activeCalls.filter(call => call.status === 'calling').length;
+            if (callingCount > 0) {
+                startRinging();
+            } else {
+                stopRinging();
+            }
             
             callList.innerHTML = activeCalls.map(call => `
                 <div class="call-item ${call.status}">
