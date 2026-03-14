@@ -601,7 +601,7 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    contacts = new Array(data.count).fill(null); // just track count
+                    contacts = new Array(data.count).fill(null);
                     document.getElementById('contacts').innerText = `${data.count} contacts loaded`;
                     document.getElementById('status').innerText = `Ready to dial ${data.count} contacts from ${file.name}`;
                 } else {
@@ -611,11 +611,6 @@
             .catch(e => {
                 document.getElementById('status').innerText = 'Upload failed: ' + e;
             });
-
-            const reader = new FileReader();
-            reader.onload = function(event) {
-            
-            reader.readAsText(file);
         });
 
         // --- Connect Ding Sound ---
