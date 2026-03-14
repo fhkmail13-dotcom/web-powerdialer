@@ -276,46 +276,7 @@
         let activeCalls = [];
         let callIdCounter = 1;
         
-        // Simulate call management
-        function addActiveCall(contact, isManual = false) {
-            const call = {
-                id: callIdCounter++,
-                contact: contact,
-                status: 'calling',
-                startTime: Date.now(),
-                isManual: isManual
-            };
-            
-            activeCalls.push(call);
-            updateActiveCallsDisplay();
-            
-            setTimeout(() => updateCallStatus(call.id, Math.random() > 0.7 ? 'answered' : 'failed'), 
-                       2000 + Math.random() * 3000);
-            
-            return call.id;
-        }
-        
-        function updateCallStatus(callId, newStatus) {
-            const call = activeCalls.find(c => c.id === callId);
-            if (!call) return;
-            
-            call.status = newStatus;
-            updateActiveCallsDisplay();
-            
-            if (newStatus === 'answered') {
-                showConnectionBanner(call.contact);
-                activeCalls = activeCalls.filter(c => c.id === callId);
-                setTimeout(() => {
-                    updateCallStatus(callId, 'completed');
-                    hideConnectionBanner();
-                }, 5000 + Math.random() * 10000);
-            } else if (newStatus === 'completed' || newStatus === 'failed') {
-                setTimeout(() => {
-                    activeCalls = activeCalls.filter(c => c.id !== callId);
-                    updateActiveCallsDisplay();
-                }, 2000);
-            }
-        }
+        // Call display is driven by backend polling - no simulation
         
         function updateActiveCallsDisplay() {
             const callList = document.getElementById('callList');
@@ -517,27 +478,7 @@
             startPolling();
         }
         
-        function simulateDialing() {
-            if (!isDialing || isPaused || contacts.length === 0) return;
 
-            const activeCount = activeCalls.filter(c => c.status === 'calling' || c.status === 'answered').length;
-            const slots = simultaneousDials - activeCount;
-
-            for (let i = 0; i < slots && contacts.length > 0; i++) {
-                const contact = contacts.shift();
-                addActiveCall(contact);
-                callCount++;
-                document.getElementById('calls').innerText = callCount;
-            }
-            
-            setTimeout(() => {
-                if (isDialing && !isPaused && contacts.length > 0) {
-                    simulateDialing();
-                } else if (contacts.length === 0) {
-                    document.getElementById('status').innerText = 'All contacts dialed!';
-                }
-            }, 3000 + Math.random() * 2000);
-        }
         
         function pause() { 
             isPaused = true;
