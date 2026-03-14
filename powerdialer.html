@@ -325,6 +325,28 @@
                 return;
             }
             
+            
+            
+            // Handle ring and connect sounds
+            const callingCount = activeCalls.filter(call => call.status === "calling").length;
+            const ringSound = document.getElementById("ringSound");
+            
+            if (callingCount > 0) {
+                if (ringSound.paused) {
+                    ringSound.play().catch(e => console.log("Ring sound blocked by browser"));
+                }
+            } else {
+                ringSound.pause();
+                ringSound.currentTime = 0;
+            }
+            
+            // Play connect sound when someone answers
+            const answeredCalls = activeCalls.filter(call => call.status === "answered");
+            if (answeredCalls.length > 0) {
+                const connectSound = document.getElementById("connectSound");
+                connectSound.play().catch(e => console.log("Connect sound blocked by browser"));
+            }
+            
             callList.innerHTML = activeCalls.map(call => `
                 <div class="call-item ${call.status}">
                     <div class="call-info">
@@ -567,5 +589,11 @@
             reader.readAsText(file);
         });
     </script>
+    <audio id="ringSound" loop>
+        <source src="data:audio/wav;base64,UklGRh4CAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YfoBAAC4uLi4uLi4QEBAQEBAQEBAuLi4uLi4uEBAQEBAQEBAQLi4uLi4uLhAQEBAQEBAQEC4uLi4uLi4QEBAQEBAQEBAuLi4uLi4uEBAQEBAQEBAQLi4uLi4uLhAQEBAQEBAQEC4uLi4uLi4QEBAQEBAQEBAuLi4uLi4uEBAQEBAQEBAQLi4uLi4uLhAQEBAQEBAQEC4uLi4uLi4QEBAQEBAQEBAuLi4uLi4uA==" type="audio/wav">
+    </audio>
+    <audio id="connectSound">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBDuB0fPGdyMFLYPP8teKOQcTZ7ztr7hUFw1Mp+Dvs2gbBzaJz+/ZfTAFGHDG9tyTQwgPXrfq6qVSFApAm9/xwmUhBzaJ0fPKeSIEKn/M8diIJQUvTK3h6JFCAw5Xqe/jrFIfBBSF2e3bnD0HIoHR9NeRPAgPXaHg7bBJEgx4tuPpq1knBySS2vDTgjMGCozT59udOQIZc8P22YQxAxJOmt/zul4ZBT+Azuu+YQU7aL3h4qZCCQ9wveHspFYfCkOX3vDVcTYGJYXR9M2BMRwQVKzkzn4hEhJVxePoklQQByKF3PLMbmEQAn/J6Jg5EBJ2z+fjpm0mAjOQ2fLZjC8J" type="audio/wav">
+    </audio>
 </body>
 </html>
