@@ -330,6 +330,7 @@
             
             if (activeCalls.length === 0) {
                 callList.innerHTML = '<div class="no-calls">No active calls</div>';
+                stopRinging();
                 return;
             }
             
@@ -527,8 +528,11 @@
         
         function simulateDialing() {
             if (!isDialing || isPaused || contacts.length === 0) return;
-            
-            for (let i = 0; i < simultaneousDials && contacts.length > 0; i++) {
+
+            const activeCount = activeCalls.filter(c => c.status === 'calling' || c.status === 'answered').length;
+            const slotsAvailable = simultaneousDials - activeCount;
+
+            for (let i = 0; i < slotsAvailable && contacts.length > 0; i++) {
                 const contact = contacts.shift();
                 addActiveCall(contact);
                 callCount++;
@@ -595,6 +599,7 @@
                 const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
                 const nameCol = headers.findIndex(h => h.includes('name'));
                 const phoneCol = headers.findIndex(h => h.includes('phone'));
+                const emailCol = headers.findIndex(h => h.includes('email'));
                 
                 if (nameCol === -1 || phoneCol === -1) {
                     document.getElementById('status').innerText = 'CSV must have "name" and "phone" columns';
@@ -607,8 +612,9 @@
                     if (row.length > Math.max(nameCol, phoneCol)) {
                         const name = row[nameCol];
                         const phone = row[phoneCol];
+                        const email = emailCol !== -1 && row[emailCol] ? row[emailCol] : '';
                         if (name && phone) {
-                            contacts.push({name: name, phone: phone});
+                            contacts.push({name: name, phone: phone, email: email});
                         }
                     }
                 }
