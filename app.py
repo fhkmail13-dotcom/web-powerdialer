@@ -5,11 +5,6 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    with open('index.html', 'r') as f:
-        return f.read()
-
-@app.route('/dialer')
-def dialer():
     with open('powerdialer.html', 'r') as f:
         return f.read()
 
