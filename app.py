@@ -276,6 +276,20 @@ def call_status():
     
     return '', 200
 
+@app.route('/active_calls_data')
+def active_calls_data():
+    global active_calls
+    calls = []
+    for sid, data in active_calls.items():
+        calls.append({
+            'call_sid': sid,
+            'name': data['contact'].get('name', ''),
+            'phone': data['contact'].get('phone', ''),
+            'email': data['contact'].get('email', ''),
+            'status': data['status']
+        })
+    return jsonify({'calls': calls})
+
 @app.route('/health')
 def health():
     return "OK"

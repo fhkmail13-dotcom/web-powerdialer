@@ -284,44 +284,60 @@
         let activeCalls = [];
         let callIdCounter = 1;
         
-        // Simulate call management
-        function addActiveCall(contact, isManual = false) {
-            const call = {
-                id: callIdCounter++,
-                contact: contact,
-                status: 'calling',
-                startTime: Date.now(),
-                isManual: isManual
-            };
-            
-            activeCalls.push(call);
-            updateActiveCallsDisplay();
-            
-            setTimeout(() => updateCallStatus(call.id, Math.random() > 0.7 ? 'answered' : 'failed'), 
-                       2000 + Math.random() * 3000);
-            
-            return call.id;
+        // Poll real backend for call status
+        let pollInterval = null;
+
+        function startPolling() {
+            if (pollInterval) return;
+            pollInterval = setInterval(pollBackend, 1500);
         }
-        
-        function updateCallStatus(callId, newStatus) {
-            const call = activeCalls.find(c => c.id === callId);
-            if (!call) return;
-            
-            call.status = newStatus;
-            updateActiveCallsDisplay();
-            
-            if (newStatus === 'answered') {
-                showConnectionBanner(call.contact);
-                activeCalls = activeCalls.filter(c => c.id === callId);
-                setTimeout(() => {
-                    updateCallStatus(callId, 'completed');
+
+        function stopPolling() {
+            if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        }
+
+        async function pollBackend() {
+            try {
+                const [statusRes, callsRes] = await Promise.all([
+                    fetch('/status'),
+                    fetch('/active_calls_data')
+                ]);
+                const status = await statusRes.json();
+                const callsData = await callsRes.json();
+
+                // Update call count
+                callCount = status.call_count;
+                document.getElementById('calls').innerText = callCount;
+
+                // Update contacts remaining
+                if (status.contacts_remaining !== undefined) {
+                    document.getElementById('contacts').innerText = 
+                        status.contacts_remaining + ' contacts remaining';
+                }
+
+                // Update active calls from real data
+                activeCalls = callsData.calls.map(c => ({
+                    id: c.call_sid,
+                    contact: { name: c.name, phone: c.phone, email: c.email },
+                    status: c.status
+                }));
+
+                updateActiveCallsDisplay();
+
+                // Connection banner
+                if (status.connection_info) {
+                    const banner = document.getElementById('connectionBanner');
+                    banner.innerHTML = status.connection_info;
+                    banner.classList.add('show');
+                } else {
                     hideConnectionBanner();
-                }, 5000 + Math.random() * 10000);
-            } else if (newStatus === 'completed' || newStatus === 'failed') {
-                setTimeout(() => {
-                    activeCalls = activeCalls.filter(c => c.id !== callId);
-                    updateActiveCallsDisplay();
-                }, 2000);
+                }
+
+                // Status text
+                document.getElementById('status').innerText = status.status;
+
+            } catch(e) {
+                console.log('Poll error:', e);
             }
         }
         
@@ -527,25 +543,8 @@
         }
         
         function simulateDialing() {
-            if (!isDialing || isPaused || contacts.length === 0) return;
-
-            const activeCount = activeCalls.filter(c => c.status === 'calling' || c.status === 'answered').length;
-            const slotsAvailable = simultaneousDials - activeCount;
-
-            for (let i = 0; i < slotsAvailable && contacts.length > 0; i++) {
-                const contact = contacts.shift();
-                addActiveCall(contact);
-                callCount++;
-                document.getElementById('calls').innerText = callCount;
-            }
-            
-            setTimeout(() => {
-                if (isDialing && !isPaused && contacts.length > 0) {
-                    simulateDialing();
-                } else if (contacts.length === 0) {
-                    document.getElementById('status').innerText = 'All contacts dialed!';
-                }
-            }, 3000 + Math.random() * 2000);
+            // Real dialing is handled by backend, just start polling
+            startPolling();
         }
         
         function pause() { 
@@ -574,8 +573,10 @@
             isDialing = false;
             isPaused = false;
             activeCalls = [];
+            stopPolling();
             updateActiveCallsDisplay();
             hideConnectionBanner();
+            fetch('/hangup_calls', {method: 'POST'});
             document.getElementById('status').innerText = 'STOPPED - All calls ended'; 
         }
         
