@@ -322,6 +322,7 @@
             
             if (activeCalls.length === 0) {
                 callList.innerHTML = '<div class="no-calls">No active calls</div>';
+                stopRinging();
                 return;
             }
             
@@ -474,8 +475,11 @@
         
         function simulateDialing() {
             if (!isDialing || isPaused || contacts.length === 0) return;
-            
-            for (let i = 0; i < simultaneousDials && contacts.length > 0; i++) {
+
+            const activeCount = activeCalls.filter(c => c.status === 'calling' || c.status === 'answered').length;
+            const slots = simultaneousDials - activeCount;
+
+            for (let i = 0; i < slots && contacts.length > 0; i++) {
                 const contact = contacts.shift();
                 addActiveCall(contact);
                 callCount++;
@@ -517,6 +521,7 @@
             isDialing = false;
             isPaused = false;
             activeCalls = [];
+            stopRinging();
             updateActiveCallsDisplay();
             hideConnectionBanner();
             document.getElementById('status').innerText = 'STOPPED - All calls ended'; 
